@@ -24,3 +24,26 @@ class StringConvert:
         """ 检测字符串是否为Hex编码 """
         hex_code = "\A[0-9a-fA-F]+\Z"
         return bool(re.match(hex_code, input_str))
+    
+    @staticmethod
+    def hex_convert_int(input: str) -> int:
+        """ 十六进制转十进制 """
+        return int(input, 0) if "0x" in input else int(input, 16)
+    
+    @staticmethod
+    def hex_convert_bin(input: str) -> str:
+        """ 将十六进制转换为二进制 """
+        input = input.replace("0x", "") # 去除前缀
+        return bin(int(input, 16)).replace("0b", "").zfill(8)
+    
+    @staticmethod
+    def bin_convert_hex(input: str) -> str:
+        """ 将二进制转换为十六进制 """
+        input = input.replace("0b", "") # 去除前缀
+        return hex(int(input, 2)).replace("0x", "")
+    
+    @staticmethod
+    def bin_convert_int(input: str) -> int:
+        """ 将二进制转换为十进制 """
+        input = input.replace("0b", "") # 去除前缀
+        return int(input, 2)
