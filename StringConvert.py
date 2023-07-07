@@ -34,13 +34,17 @@ class StringConvert:
     def hex_convert_bin(input: str) -> str:
         """ 将十六进制转换为二进制 """
         input = input.replace("0x", "") # 去除前缀
-        return bin(int(input, 16)).replace("0b", "").zfill(8)
+        value: str = bin(int(input, 16)).replace("0b", "")
+        value = value if len(value) % 8 == 0 else "0"*(8 - len(value)%8) + value
+        return value
     
     @staticmethod
     def bin_convert_hex(input: str) -> str:
         """ 将二进制转换为十六进制 """
         input = input.replace("0b", "") # 去除前缀
-        return hex(int(input, 2)).replace("0x", "")
+        value: str = hex(int(input, 2)).replace("0x", "")
+        value = value if len(value) % 2 == 0 else "0" + value
+        return value
     
     @staticmethod
     def bin_convert_int(input: str) -> int:

@@ -1,6 +1,9 @@
+from enum import Enum
 from abc import abstractclassmethod
+from typing import List
 from MyError import ASN1DerProcessCode, ASN1DerProcessError
 from StringConvert import StringConvert
+
 
 class DerIBase:
     """ 遵循TLV格式的ASN1.Der编码规则 """
@@ -62,7 +65,7 @@ class Sequence(DerIBase):
     def __init__(self, value: str) -> None:
         super().__init__(value)
         # Sequence类型Tag为30
-        self._is_tag("30")
+        self._is_tag(ASN1DerObjectTagsEnum.Sequence.value)
 
 class Oid(DerIBase):
     """ OID-对象标识符类型 """
@@ -70,17 +73,88 @@ class Oid(DerIBase):
     def __init__(self, value: str) -> None:
         super().__init__(value)
         # OID类型Tag为06
-        self._is_tag("06")
+        self._is_tag(ASN1DerObjectTagsEnum.Oid.value)
 
 class BitString(DerIBase):
     """ BIT STRING类型 """
-    #TODO @chenchuan01 2023/06/29 BIT STRING类型的Value值需要注意有个前导字节处理，虽然公钥中不涉及，但是还是要写完整。
 
     def __init__(self, value: str) -> None:
         super().__init__(value)
         # BIT STRING类型Tag为03
-        self._is_tag("03")
+        self._is_tag(ASN1DerObjectTagsEnum.BitString.value)
+        # 处理Value字段的前导字节
+        self._process_bitstring_value()
 
     def _process_bitstring_value(self) -> None:
         """ 处理Value字段的前导字节 """
-        
+        unused_num: int = StringConvert.hex_convert_int(self.value[:2])
+        bin_value: str = StringConvert.hex_convert_bin(self.value[2:])
+        self.value =  StringConvert.bin_convert_hex(bin_value[:len(bin_value)-unused_num] + unused_num * "0")
+
+
+class ASN1DerObjectsEnum(Enum):
+    """ ASN1Der对象类型枚举 """
+    Sequence: Sequence = Sequence # Sequence-序列类型
+    Oid: Oid = Oid # OID-对象标识符类型
+    BitString: BitString = BitString # BIT STRING类型
+
+class ASN1DerObjectTagsEnum(Enum):
+    """ ASN1Der对象类型-Tag枚举 """
+    Sequence: str = "30" # Sequence-序列类型
+    Oid: str = "06" # OID-对象标识符类型
+    BitString: str = "03" # BIT STRING类型
+
+class ASN1DerObjectFactory:
+    """ 创建ASN1.Der对象-工厂 """
+
+    @staticmethod
+    def create():
+        """ 创建对应的对象类型 """
+
+class DerObjects:
+    """ 拆分整值内的多个Der对象 """
+
+    def __init__(self, value: str) -> None:
+        # 声明类属性
+        self.der_objects_list: list = []
+        # 赋值类属性
+        self.der_objects_list = self._process_values(value)
+
+    def _process_values(self, value: str) -> List[DerIBase]:
+        data_list: List[str] = [value]
+        result_list: list = []
+        # 开始处理
+        while len(data_list) > 0:
+            sub = data_list.pop()
+            sub_object: DerIBase = self._create_der_object(sub)
+            if sub_object.tag != ASN1DerObjectTagsEnum.Sequence.value:
+                result_list.append(sub)
+            elif sub_object.tag == ASN1DerObjectTagsEnum.Sequence.value:
+                data_list += self._split_sequence(sub_object.value)            
+
+        return [ self._create_der_object(i) for i in result_list]
+
+    def _split_sequence(self, value: str) -> List[str]:
+        """ 拆分ASN1.Der.Sequence序列类型 """
+        result_list: List[str] = []
+        index: int = 0
+        while True:
+            sub_value_len: int = StringConvert.hex_convert_int(value[index+2:index+4])
+            result_list.append(value[index:index+sub_value_len*2+4])
+            index = index + sub_value_len*2 + 4
+            if index == len(value): break
+        return result_list
+
+    def _create_der_object(self, value: str) -> DerIBase:
+        """ 创建单个Der对象 """
+        tag: str = value[:2]
+        object_name: str = ASN1DerObjectTagsEnum(tag).name
+        return ASN1DerObjectsEnum[object_name].value(value)
+    
+result: List[DerIBase] = DerObjects("3059301306072A8648CE3D020106082A811CCF5501822D034200046A826E79032BA6144FA1EB22F4F2BA3D2B77EBDC54789C1EF15B64FBCFE7A259E771DDD2FE6DDB377B1A9820B394F58AFA2BF02226EC5DAEFACC14B2A22D4E11").der_objects_list
+
+for i in result:
+    print(i.tag)
+    print(i.length)
+    print(i.value)
+    print('-'*30)

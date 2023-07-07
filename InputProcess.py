@@ -101,6 +101,7 @@ class InputProcess:
         if self.sm2_pubkey_info.string_type.name == "Base64":
             # Base64编码统一处理为十六进制
             input_string = StringConvert.base64_convert_hex(input_string)
+
         if len(input_string) == 130 or len(input_string) == 128:
             # 若为Hex编码130长度带公钥标识，处理为128长度Hex编码Raw格式公钥
             input_string = input_string[-128:]
@@ -110,6 +111,9 @@ class InputProcess:
         else:
             raise PubkeyProcessError(PubkeyProcessCode.PubkeyTypeError) # 抛出公钥类型报错
         return input_string
+
+    def _is_hex_der_pubkey(self, input: str) -> bool:
+        """ 检测是否为der格式公钥 """
 
     def _hex_raw_convert_der(self, pubkey: str) -> str:
         """ 十六进制128长度公钥-Raw格式转换为Der格式 """
@@ -122,4 +126,4 @@ class InputProcess:
     def _hex_der_convert_raw(self, pubkey: str) -> str:
         """ 十六进制Der格式公钥-Der格式转换为Raw格式 """
         return pubkey[54:]
-    
+
