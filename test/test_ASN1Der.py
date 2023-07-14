@@ -1,5 +1,6 @@
 import unittest, sys
 from typing import List
+from collections import Counter
 sys.path.append('.')
 
 from ASN1Der import DerIBase, BitString, DerObjects, Sequence, Oid
@@ -28,9 +29,8 @@ assert_bitstring_value_result: dict = {
 # 测试拆分整段值内的多个Der对象
 assert_all_value = "3059301306072A8648CE3D020106082A811CCF5501822D034200046A826E79032BA6144FA1EB22F4F2BA3D2B77EBDC54789C1EF15B64FBCFE7A259E771DDD2FE6DDB377B1A9820B394F58AFA2BF02226EC5DAEFACC14B2A22D4E11"
 assert_all_value_result: list = [
-    Sequence, Oid, BitString
+    Oid, Oid, BitString
 ]
-
 
 class TestDerIBase(unittest.TestCase):
 
@@ -57,13 +57,12 @@ class TestDerIBase(unittest.TestCase):
 
     def test_all_value(self):
         """ 测试整值"""
-        result: List[DerIBase] = DerObjects(assert_all_value).der_objects_list
-        true_flag: int = 3
-        flag = 0
-        for i in assert_all_value_result:
-            for j in result:
-                if isinstance(j, i): flag += 1
-        self.assertTrue(flag == true_flag)
+        der_objects_list: List[DerIBase] = DerObjects(assert_all_value).der_objects_list
+        is_diff_list: list = []
+        for i in der_objects_list:
+            if i.__class__ in assert_all_value_result:
+                is_diff_list.append(i.__class__)
+        self.assertTrue(Counter(assert_all_value_result) == Counter(is_diff_list))
 
 if __name__ == "__main__":
     unittest.main()

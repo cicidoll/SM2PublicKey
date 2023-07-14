@@ -1,7 +1,10 @@
 from enum import Enum
+from collections import Counter
+from typing import List
 from StringConvert import StringConvert
 from MyError import PubkeyProcessCode, PubkeyProcessError
 from Pubkey import SM2Pubkey
+import ASN1Der
 
 class StringTypeDescriptionEnum(Enum):
     """ 字符串编码类型描述枚举 """
@@ -77,9 +80,11 @@ class InputProcess:
         """ 进入转换流程 """
         # 获得输入的公钥值
         input_string: str = self._process_input_string()
+        # 开始转换
         if self.sm2_pubkey_info.pubkey_type.name == "Raw":
             self.sm2_pubkey_info.pubkey.hex_raw = input_string
             self.sm2_pubkey_info.pubkey.base64_der = StringConvert.hex_convert_base64(self._hex_raw_convert_der(input_string))
+        
         elif self.sm2_pubkey_info.pubkey_type.name == "Der":
             self.sm2_pubkey_info.pubkey.hex_raw = self._hex_der_convert_raw(input_string)
             self.sm2_pubkey_info.pubkey.base64_der = StringConvert.hex_convert_base64(input_string)
@@ -90,31 +95,38 @@ class InputProcess:
         input_string: str = input()
 
         # 1、检查编码类型
-        if StringConvert.is_base64(input_string):
-            self.sm2_pubkey_info.string_type = 0
-        elif StringConvert.is_hex(input_string):
-            self.sm2_pubkey_info.string_type = 1
-        else:
+        if not StringConvert.is_base64(input_string) and not StringConvert.is_hex(input_string):
             raise PubkeyProcessError(PubkeyProcessCode.StringTypeError) # 抛出编码类型报错
+        self.sm2_pubkey_info.string_type = 0 if StringConvert.is_base64(input_string) else 1
         
         # 2、检查格式类型
-        if self.sm2_pubkey_info.string_type.name == "Base64":
-            # Base64编码统一处理为十六进制
-            input_string = StringConvert.base64_convert_hex(input_string)
+        # Base64编码统一处理为十六进制
+        input_string = StringConvert.base64_convert_hex(input_string) if self.sm2_pubkey_info.string_type.name == "Base64" else input_string
 
         if len(input_string) == 130 or len(input_string) == 128:
             # 若为Hex编码130长度带公钥标识，处理为128长度Hex编码Raw格式公钥
             input_string = input_string[-128:]
             self.sm2_pubkey_info.pubkey_type = 0 # 确定公钥值类型为Raw格式
-        elif len(input_string) > 130 and "301306072A8648CE3D020106082A811CCF5501822D" in input_string.upper():
-            self.sm2_pubkey_info.pubkey_type = 1 # 确定公钥值类型为Der格式
+        elif len(input_string) > 130:
+            # 检测是否为Der格式公钥：根据整值进行Der对象实例化
+            is_der_result: bool = self._is_hex_der_pubkey(input_string)
+            
+            if is_der_result == False:
+                raise PubkeyProcessError(PubkeyProcessCode.PubkeyTypeError) # 抛出公钥类型报错
+            else:
+                self.sm2_pubkey_info.pubkey_type = 1 # 确定公钥值类型为Der格式
         else:
             raise PubkeyProcessError(PubkeyProcessCode.PubkeyTypeError) # 抛出公钥类型报错
         return input_string
 
-    def _is_hex_der_pubkey(self, input: str) -> bool:
+    def _is_hex_der_pubkey(self, input_string: str) -> bool:
         """ 检测是否为der格式公钥 """
-
+        assert_result: list = [ASN1Der.Oid, ASN1Der.Oid, ASN1Der.BitString]
+        der_objects_list: List[ASN1Der.DerIBase] = ASN1Der.DerObjects(input_string).der_objects_list
+        diff_add_list: list = [ i.__class__ for i in der_objects_list if i.__class__ in assert_result]
+        # Der格式公钥会解析出来两个Oid和一个BIT STRING
+        return True if Counter(diff_add_list) == Counter(assert_result) else False
+    
     def _hex_raw_convert_der(self, pubkey: str) -> str:
         """ 十六进制128长度公钥-Raw格式转换为Der格式 """
         pubkey = "03420004" + pubkey
@@ -123,7 +135,8 @@ class InputProcess:
         result: str = "30" + str(hex(int(len(oid + pubkey) / 2))[2:]) + oid + pubkey
         return result
     
-    def _hex_der_convert_raw(self, pubkey: str) -> str:
+    def _hex_der_convert_raw(self, input_string: str) -> str:
         """ 十六进制Der格式公钥-Der格式转换为Raw格式 """
-        return pubkey[54:]
-
+        der_objects_list: List[ASN1Der.DerIBase] = ASN1Der.DerObjects(input_string).der_objects_list
+        pubkey_der_object: ASN1Der.BitString = [i for i in der_objects_list if i.__class__ == ASN1Der.BitString][0]
+        return pubkey_der_object.value
